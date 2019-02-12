@@ -2,6 +2,9 @@
 
 # nkn-client-js
 
+[English](/README.md) •
+[Русский](/docs/README-ru.md)
+
 JavaScript implementation of NKN client.
 
 Send and receive data between any NKN clients without setting up a server.
@@ -67,7 +70,7 @@ a client using customized bootstrap RPC server:
 ```javascript
 const client = nkn({
   identifier: 'any string',
-  seedRpcServerAddr: 'https://xxx',
+  seedRpcServerAddr: 'https://ip:port',
 });
 ```
 
@@ -94,21 +97,114 @@ client.on('connect', () => {
 });
 ```
 
-Send data to other clients:
+Send text message to other clients:
 
 ```javascript
 client.send(
   'another client address',
-  'some message',
+  'hello world!',
 );
 ```
 
+You can also send byte array directly:
+
+```javascript
+client.send(
+  'another client address',
+  Uint8Array.from([1,2,3,4,5]),
+);
+```
+
+Or publish text message to a topic (subscribe is done through [nkn-wallet-js](https://github.com/nknorg/nkn-wallet-js)):
+
+```javascript
+client.publish(
+  'topic',
+  0,
+  'hello world!',
+);
+```
 Receive data from other clients:
 
 ```javascript
-client.on('message', (src, payload) => {
-  console.log(src, payload);
+// can also be async (src, payload, payloadType) => {}
+client.on('message', (src, payload, payloadType) => {
+  if (payloadType === nkn.PayloadType.TEXT) {
+    console.log('Receive text message:', src, payload);
+  } else if (payloadType === nkn.PayloadType.BINARY) {
+    console.log('Receive binary message:', src, payload);
+  }
 });
+```
+
+If a valid data (string or Uint8Array) is returned at the end of the handler,
+the data will be sent back to sender as response:
+
+```javascript
+client.on('message', (src, payload, payloadType) => {
+  return 'Well received!';
+  // You can also return a byte array:
+  // return Uint8Array.from([1,2,3,4,5]);
+});
+```
+
+Note that if multiple onmessage handlers are added, the result returned by the
+first handler (in the order of being added) will be sent as response.
+
+The `send` method will return a Promise that will be resolved when sender
+receives a response, or rejected if not receiving acknowledgement within timeout
+period. Similar to message, response can be either string or byte array:
+
+```javascript
+client.send(
+  'another client address',
+  'hello world!',
+).then((response) => {
+  // The response here can be either string or Uint8Array
+  console.log('Receive response:', response);
+}).catch((e) => {
+  // This will most likely to be timeout
+  console.log('Catch:', e);
+});
+```
+
+Client receiving data will automatically send an acknowledgement back to sender
+if no response is returned by any handler so that sender will be able to know if
+the packet has been delivered. From the sender's perspective, it's almost the
+same as receiving a response, except that the Promise is resolved without a
+value:
+
+```javascript
+client.send(
+  'another client address',
+  'hello world!',
+).then(() => {
+  console.log('Receive ACK');
+}).catch((e) => {
+  // This will most likely to be timeout
+  console.log('Catch:', e);
+});
+```
+
+Timeout for receiving response or acknowledgement can be set when initializing
+client:
+
+```javascript
+const client = nkn({
+  responseTimeout: 5, // in seconds
+});
+```
+
+or when sending a packet:
+
+```javascript
+client.send(
+  'another client address',
+  'Hello world!',
+  {
+    responseTimeout: 5, // in seconds
+  },
+)
 ```
 
 Check [examples](examples) for full examples.
